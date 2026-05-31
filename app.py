@@ -161,22 +161,36 @@ for tab, stock_id in zip(tabs, watchlist):
         m4.metric("52週高", f"{info['52週高']:.2f}" if info["52週高"] else "—")
         m5.metric("52週低", f"{info['52週低']:.2f}" if info["52週低"] else "—")
 
-        # 價格警示
-        alert_col1, alert_col2 = st.columns([3, 1])
-        with alert_col1:
-            alert_key = f"alert_{stock_id}"
-            alert_price = st.number_input(
-                "設定警示價（到價顯示提醒）",
+        # 價格警示（分漲／跌兩個）
+        close_now = float(latest["Close"])
+        st.markdown("**價格警示設定**")
+        al1, al2 = st.columns(2)
+        with al1:
+            alert_up = st.number_input(
+                f"📈 漲至警示（現價 {close_now:.2f}）",
                 min_value=0.0, value=0.0, step=1.0,
-                key=alert_key, label_visibility="visible",
+                key=f"alert_up_{stock_id}",
             )
-        if alert_price > 0:
-            close_now = float(latest["Close"])
-            if close_now >= alert_price:
-                st.warning(f"⚠️ {stock_id} 現價 {close_now:.2f} 已達或超過警示價 {alert_price:.2f}！")
+        with al2:
+            alert_down = st.number_input(
+                f"📉 跌至警示（現價 {close_now:.2f}）",
+                min_value=0.0, value=0.0, step=1.0,
+                key=f"alert_dn_{stock_id}",
+            )
+
+        if alert_up > 0:
+            if close_now >= alert_up:
+                st.error(f"🔴 {stock_id} 現價 {close_now:.2f} 已達或超過漲至警示 {alert_up:.2f}！")
             else:
-                diff = alert_price - close_now
-                st.info(f"距警示價 {alert_price:.2f} 還差 {diff:.2f} 元（{diff/close_now*100:.1f}%）")
+                diff = alert_up - close_now
+                st.info(f"📈 距漲至警示 {alert_up:.2f} 還差 {diff:.2f} 元（{diff/close_now*100:.1f}%）")
+
+        if alert_down > 0:
+            if close_now <= alert_down:
+                st.error(f"🔵 {stock_id} 現價 {close_now:.2f} 已達或低於跌至警示 {alert_down:.2f}！")
+            else:
+                diff = close_now - alert_down
+                st.info(f"📉 距跌至警示 {alert_down:.2f} 還差 {diff:.2f} 元（{diff/close_now*100:.1f}%）")
 
         st.markdown("---")
 

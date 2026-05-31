@@ -94,7 +94,7 @@ with st.expander("📊 大盤總覽 & 漲跌幅排行", expanded=True):
         if not movers.empty:
             top5 = movers.head(5)[["代號", "名稱", "收盤", "漲跌幅"]]
             st.dataframe(
-                top5.style.applymap(
+                top5.style.map(
                     lambda v: "color:#ef5350" if isinstance(v, float) and v > 0 else "color:#26a69a" if isinstance(v, float) and v < 0 else "",
                     subset=["漲跌幅"],
                 ),
@@ -106,7 +106,7 @@ with st.expander("📊 大盤總覽 & 漲跌幅排行", expanded=True):
         if not movers.empty:
             bot5 = movers.tail(5).iloc[::-1][["代號", "名稱", "收盤", "漲跌幅"]]
             st.dataframe(
-                bot5.style.applymap(
+                bot5.style.map(
                     lambda v: "color:#26a69a" if isinstance(v, float) and v < 0 else "",
                     subset=["漲跌幅"],
                 ),
@@ -259,11 +259,14 @@ for tab, stock_id in zip(tabs, watchlist):
                     st.info("目前無法取得法人數據（可能非交易日）")
                 else:
                     inst_df = pd.DataFrame(inst)
+                    def color_inst(v):
+                        if isinstance(v, (int, float)) and v > 0:
+                            return "color:#ef5350"
+                        elif isinstance(v, (int, float)) and v < 0:
+                            return "color:#26a69a"
+                        return ""
                     st.dataframe(
-                        inst_df.style.applymap(
-                            lambda v: "color:#ef5350" if isinstance(v, int) and v > 0 else "color:#26a69a" if isinstance(v, int) and v < 0 else "",
-                            subset=["外資", "投信", "自營商", "合計"],
-                        ),
+                        inst_df.style.map(color_inst, subset=["外資", "投信", "自營商", "合計"]),
                         use_container_width=True, hide_index=True,
                     )
                     st.caption("正數（紅）= 買超，負數（綠）= 賣超")

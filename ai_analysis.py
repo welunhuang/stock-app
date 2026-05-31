@@ -2,23 +2,27 @@ import anthropic
 import pandas as pd
 
 
-def build_prompt(stock_id: str, info: dict, df: pd.DataFrame, signals: dict) -> str:
+def build_prompt(
+    stock_id: str,
+    info: dict,
+    df: pd.DataFrame,
+    signals: dict,
+    news_list: list = None,
+    inst_data: list = None,
+) -> str:
     latest = df.iloc[-1]
     prev_close = df.iloc[-2]["Close"]
     close = float(latest["Close"])
     change_pct = (close - float(prev_close)) / float(prev_close) * 100
 
-    # 近5日均量
     avg_vol_5 = df["Volume"].tail(5).mean()
     avg_vol_20 = df["Volume"].tail(20).mean()
     vol_ratio = avg_vol_5 / avg_vol_20 if avg_vol_20 else 1
 
-    # 支撐壓力（近60日高低點）
     recent = df.tail(60)
     support = float(recent["Low"].min())
     resistance = float(recent["High"].max())
 
-    # 趨勢判斷
     ma5 = float(latest.get("MA5", 0) or 0)
     ma20 = float(latest.get("MA20", 0) or 0)
     ma60 = float(latest.get("MA60", 0) or 0)
@@ -45,7 +49,41 @@ def build_prompt(stock_id: str, info: dict, df: pd.DataFrame, signals: dict) -> 
     w52h = info.get("52週高")
     w52l = info.get("52週低")
 
-    prompt = f"""你是一位資深台股技術分析師，擁有20年實戰經驗。請根據以下完整數據，用繁體中文撰寫一份專業的個股分析報告。
+    # 新聞段落
+    news_section = ""
+    if news_list:
+        headlines = "\n".join(
+            f"  [{i+1}] {n['title']}（{n['source']}，{n['pubDate']}）"
+            for i, n in enumerate(news_list[:6])
+        )
+        news_section = f"""
+═══════════════════════════
+最新相關新聞（請納入分析）
+═══════════════════════════
+{headlines}
+"""
+
+    # 法人籌碼段落
+    inst_section = ""
+    if inst_data:
+        inst_lines = "\n".join(
+            f"  {d['日期']}：外資 {d['外資']:+,} 張 | 投信 {d['投信']:+,} 張 | 自營商 {d['自營商']:+,} 張 | 合計 {d['合計']:+,} 張"
+            for d in inst_data
+        )
+        total = sum(d["合計"] for d in inst_data)
+        foreign_total = sum(d["外資"] for d in inst_data)
+        inst_section = f"""
+═══════════════════════════
+三大法人近期籌碼（請納入分析）
+═══════════════════════════
+{inst_lines}
+
+  近期合計：外資 {foreign_total:+,} 張 | 三大法人總計 {total:+,} 張
+  籌碼解讀：{'外資持續買超，籌碼集中偏多' if foreign_total > 0 else '外資持續賣超，籌碼鬆動偏空'}
+"""
+
+    prompt = f"""你是一位資深台股技術分析師，擁有20年實戰經驗，同時熟悉基本面與籌碼分析。
+請根據以下完整數據（包含技術指標、最新新聞、法人籌碼），用繁體中文撰寫一份專業且具體的個股分析報告。
 
 ═══════════════════════════
 股票基本資訊
@@ -71,47 +109,51 @@ def build_prompt(stock_id: str, info: dict, df: pd.DataFrame, signals: dict) -> 
   上軌={bb_upper:.2f}  中軌={bb_mid:.2f}  下軌={bb_lower:.2f}
   現價位置：{'近上軌（偏強）' if close > bb_mid+(bb_upper-bb_mid)*0.7 else '近下軌（偏弱）' if close < bb_mid-(bb_mid-bb_lower)*0.7 else '中性區間'}
 
-量能分析：
-  近5日均量 vs 近20日均量比：{vol_ratio:.2f}（{'放量' if vol_ratio>1.2 else '縮量' if vol_ratio<0.8 else '平量'}）
-
-近期支撐／壓力：
-  支撐：{support:.2f} 元  壓力：{resistance:.2f} 元
-
+量能：近5日均量 vs 近20日均量 = {vol_ratio:.2f}（{'放量' if vol_ratio>1.2 else '縮量' if vol_ratio<0.8 else '平量'}）
+近期支撐：{support:.2f} 元　壓力：{resistance:.2f} 元
 訊號摘要（整體：{overall}）：
 {signal_lines}
-
+{news_section}{inst_section}
 ═══════════════════════════
-請依以下格式撰寫分析報告（每段落請詳細說明）：
+請依以下格式撰寫分析報告：
 
-【趨勢研判】
-（說明目前多空方向、均線排列意義、近期趨勢強弱）
+【市場消息面解讀】
+（根據最新新聞，說明近期有哪些重要消息影響股價，是利多還是利空，以及市場反應）
 
-【量價分析】
-（說明成交量與價格的配合情況，放量上漲還是縮量下跌等）
+【法人籌碼動向】
+（根據三大法人買賣超數據，分析外資、投信、自營商的立場，判斷籌碼是否集中或鬆動）
+
+【技術面趨勢研判】
+（說明目前多空方向、均線排列、量價關係）
 
 【關鍵價位】
-（列出具體支撐價位與壓力價位，說明其意義）
-
-【技術指標解讀】
-（解讀 RSI、KD、MACD 目前狀態，是否有背離或交叉訊號）
+（列出具體支撐與壓力價位，說明突破或跌破的意義）
 
 【短線操作建議】
-（給出具體的操作策略，包含進場時機、停損位、目標價）
+（給出具體策略：進場時機、停損位、目標價，結合消息面與籌碼面說明）
 
 【中線展望】
-（未來1～3個月的可能走勢，需考量整體技術面）
+（未來1～3個月可能走勢，綜合技術面、消息面、籌碼面三方判斷）
 
 【風險提示】
-（列出投資此股目前需注意的風險因素）
+（列出目前投資此股的主要風險，包含技術面破位風險與消息面不確定因素）
 
 ⚠️ 免責聲明：本報告僅供技術分析參考，不構成投資建議，投資人須自行判斷並承擔風險。
 """
     return prompt
 
 
-def get_ai_analysis(stock_id: str, info: dict, df: pd.DataFrame, signals: dict, api_key: str) -> str:
+def get_ai_analysis(
+    stock_id: str,
+    info: dict,
+    df: pd.DataFrame,
+    signals: dict,
+    api_key: str,
+    news_list: list = None,
+    inst_data: list = None,
+) -> str:
     client = anthropic.Anthropic(api_key=api_key)
-    prompt = build_prompt(stock_id, info, df, signals)
+    prompt = build_prompt(stock_id, info, df, signals, news_list, inst_data)
 
     message = client.messages.create(
         model="claude-sonnet-4-6",

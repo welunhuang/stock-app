@@ -211,11 +211,12 @@ for tab, stock_id in zip(tabs, watchlist):
                 st.plotly_chart(rsi_chart(df), use_container_width=True)
             st.plotly_chart(kd_chart(df), use_container_width=True)
 
+        # 自動載入新聞（供 AI 分析使用）
+        news_list = fetch_news(info["名稱"], stock_id)
+
         # 新聞
         with sub_tabs[2]:
             st.markdown("### 最新相關新聞")
-            with st.spinner("載入新聞中..."):
-                news_list = fetch_news(info["名稱"], stock_id)
             if not news_list:
                 st.info("目前沒有找到相關新聞")
             else:
@@ -282,10 +283,22 @@ for tab, stock_id in zip(tabs, watchlist):
             else:
                 col_ai1, col_ai2 = st.columns([2, 1])
                 with col_ai1:
+                    inst_for_ai = st.session_state.get(f"inst_{stock_id}")
+                    has_news = len(news_list) > 0
+                    has_inst = bool(inst_for_ai)
+                    st.caption(
+                        f"分析將納入：技術指標 ✅　"
+                        f"新聞 {'✅' if has_news else '❌（未取得）'}　"
+                        f"法人籌碼 {'✅' if has_inst else '❌（請先到「法人籌碼」頁載入）'}"
+                    )
                     if st.button(f"產生 {stock_id} AI 分析報告", key=f"ai_{stock_id}", use_container_width=True):
                         with st.spinner("AI 分析中，約需 15～20 秒..."):
                             try:
-                                report = get_ai_analysis(stock_id, info, df, result, api_key)
+                                report = get_ai_analysis(
+                                    stock_id, info, df, result, api_key,
+                                    news_list=news_list if has_news else None,
+                                    inst_data=inst_for_ai if has_inst else None,
+                                )
                                 st.session_state[f"ai_report_{stock_id}"] = report
                             except Exception as e:
                                 st.error(f"AI 分析失敗：{e}")

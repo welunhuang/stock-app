@@ -1,10 +1,12 @@
 import yfinance as yf
 import pandas as pd
 import requests
+import streamlit as st
 
 
+@st.cache_data(ttl=600)
 def fetch_stock_data(stock_id: str, period: str = "6mo") -> pd.DataFrame:
-    """從 yfinance 抓台股歷史數據，股票代號自動加 .TW"""
+    """從 yfinance 抓台股歷史數據，快取 10 分鐘避免 rate limit"""
     ticker = stock_id if "." in stock_id else f"{stock_id}.TW"
     df = yf.download(ticker, period=period, progress=False, auto_adjust=True)
     if df.empty:
@@ -13,8 +15,9 @@ def fetch_stock_data(stock_id: str, period: str = "6mo") -> pd.DataFrame:
     return df
 
 
+@st.cache_data(ttl=600)
 def fetch_stock_info(stock_id: str) -> dict:
-    """抓取股票基本資訊"""
+    """抓取股票基本資訊，快取 10 分鐘"""
     ticker = stock_id if "." in stock_id else f"{stock_id}.TW"
     info = yf.Ticker(ticker).info
     return {

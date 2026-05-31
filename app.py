@@ -92,25 +92,18 @@ with st.expander("📊 大盤總覽 & 漲跌幅排行", expanded=True):
         with st.spinner("載入中..."):
             movers = fetch_movers()
         if not movers.empty:
-            top5 = movers.head(5)[["代號", "名稱", "收盤", "漲跌幅"]]
-            st.dataframe(
-                top5.style.map(
-                    lambda v: "color:#ef5350" if isinstance(v, float) and v > 0 else "color:#26a69a" if isinstance(v, float) and v < 0 else "",
-                    subset=["漲跌幅"],
-                ),
-                use_container_width=True, hide_index=True,
-            )
+            top5 = movers.head(5).copy()
+            top5["收盤"] = top5["收盤"].apply(lambda v: f"{v:.2f} 元")
+            top5["漲跌幅"] = top5["漲跌幅"].apply(lambda v: f"{v:+.2f}%")
+            st.dataframe(top5[["代號", "名稱", "收盤", "漲跌幅"]], use_container_width=True, hide_index=True)
 
     with col_t3:
         st.markdown("**跌幅前5**")
         if not movers.empty:
-            bot5 = movers.tail(5).iloc[::-1][["代號", "名稱", "收盤", "漲跌幅"]]
-            st.dataframe(
-                bot5.style.map(
-                    lambda v: "color:#26a69a" if isinstance(v, float) and v < 0 else "",
-                    subset=["漲跌幅"],
-                ),
-                use_container_width=True, hide_index=True,
+            bot5 = movers.tail(5).iloc[::-1].copy()
+            bot5["收盤"] = bot5["收盤"].apply(lambda v: f"{v:.2f} 元")
+            bot5["漲跌幅"] = bot5["漲跌幅"].apply(lambda v: f"{v:+.2f}%")
+            st.dataframe(bot5[["代號", "名稱", "收盤", "漲跌幅"]], use_container_width=True, hide_index=True,
             )
 
 st.markdown("---")
@@ -155,11 +148,11 @@ for tab, stock_id in zip(tabs, watchlist):
         pct_change = price_change / float(prev["Close"]) * 100
 
         m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("收盤價", f"{float(latest['Close']):.2f}", f"{price_change:+.2f} ({pct_change:+.1f}%)")
-        m2.metric("成交量", f"{int(latest['Volume']):,}")
-        m3.metric("RSI", f"{float(latest['RSI']):.1f}" if pd.notna(latest.get("RSI")) else "—")
-        m4.metric("52週高", f"{info['52週高']:.2f}" if info["52週高"] else "—")
-        m5.metric("52週低", f"{info['52週低']:.2f}" if info["52週低"] else "—")
+        m1.metric("收盤價", f"{float(latest['Close']):.2f} 元", f"{price_change:+.2f} 元 ({pct_change:+.1f}%)")
+        m2.metric("成交量", f"{int(latest['Volume'])//1000:,} 張")
+        m3.metric("RSI（0~100）", f"{float(latest['RSI']):.1f}" if pd.notna(latest.get("RSI")) else "—")
+        m4.metric("52週高", f"{info['52週高']:.2f} 元" if info["52週高"] else "—")
+        m5.metric("52週低", f"{info['52週低']:.2f} 元" if info["52週低"] else "—")
 
         # 價格警示（分漲／跌兩個）
         close_now = float(latest["Close"])
@@ -259,17 +252,15 @@ for tab, stock_id in zip(tabs, watchlist):
                     st.info("目前無法取得法人數據（可能非交易日）")
                 else:
                     inst_df = pd.DataFrame(inst)
-                    def color_inst(v):
-                        if isinstance(v, (int, float)) and v > 0:
-                            return "color:#ef5350"
-                        elif isinstance(v, (int, float)) and v < 0:
-                            return "color:#26a69a"
-                        return ""
-                    st.dataframe(
-                        inst_df.style.map(color_inst, subset=["外資", "投信", "自營商", "合計"]),
-                        use_container_width=True, hide_index=True,
-                    )
-                    st.caption("正數（紅）= 買超，負數（綠）= 賣超")
+                    display_df = inst_df.copy()
+                    for col in ["外資", "投信", "自營商", "合計"]:
+                        display_df[col] = display_df[col].apply(lambda v: f"{v:+,} 張")
+                    display_df = display_df.rename(columns={
+                        "外資": "外資（張）", "投信": "投信（張）",
+                        "自營商": "自營商（張）", "合計": "合計（張）",
+                    })
+                    st.dataframe(display_df, use_container_width=True, hide_index=True)
+                    st.caption("正數 = 買超，負數 = 賣超")
 
                     inst_df_chart = inst_df.set_index("日期")
                     st.bar_chart(inst_df_chart[["外資", "投信", "自營商"]])
@@ -283,14 +274,14 @@ for tab, stock_id in zip(tabs, watchlist):
             with col_a:
                 st.write(f"**產業**：{info['產業']}")
                 pe = info["本益比"]
-                st.write(f"**本益比**：{f'{pe:.2f}' if pe else '—'}")
-                st.write(f"**52週高**：{info['52週高']:.2f}" if info["52週高"] else "**52週高**：—")
+                st.write(f"**本益比**：{f'{pe:.2f} 倍' if pe else '—'}")
+                st.write(f"**52週高**：{info['52週高']:.2f} 元" if info["52週高"] else "**52週高**：—")
             with col_b:
                 mc = info["市值"]
-                st.write(f"**市值**：{f'{mc/1e8:.0f} 億' if mc else '—'}")
+                st.write(f"**市值**：{f'{mc/1e8:.0f} 億元' if mc else '—'}")
                 dy = info["股息殖利率"]
                 st.write(f"**股息殖利率**：{f'{dy*100:.2f}%' if dy else '—'}")
-                st.write(f"**52週低**：{info['52週低']:.2f}" if info["52週低"] else "**52週低**：—")
+                st.write(f"**52週低**：{info['52週低']:.2f} 元" if info["52週低"] else "**52週低**：—")
 
         # AI 分析
         with sub_tabs[5]:

@@ -39,9 +39,9 @@ def fetch_institutional(stock_id: str) -> list:
                     results.append({
                         "日期": f"{day.month}/{day.day}",
                         "外資": _parse_num(row[4]) // 1000,
-                        "投信": _parse_num(row[7]) // 1000,
-                        "自營商": _parse_num(row[8]) // 1000,
-                        "合計": _parse_num(row[9]) // 1000,
+                        "投信": _parse_num(row[10]) // 1000,
+                        "自營商": _parse_num(row[17]) // 1000,
+                        "合計": _parse_num(row[18]) // 1000,
                     })
                     break
         except Exception:

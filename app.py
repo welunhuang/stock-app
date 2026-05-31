@@ -234,13 +234,13 @@ for tab, stock_id in zip(tabs, watchlist):
         # 法人籌碼
         with sub_tabs[3]:
             st.markdown("### 三大法人買賣超（近5個交易日，單位：張）")
-            if st.button("載入法人數據", key=f"inst_{stock_id}"):
+            if st.button("載入法人數據", key=f"btn_inst_{stock_id}"):
                 with st.spinner("從證交所抓取法人資料中（約需10秒）..."):
                     inst_data = fetch_institutional(stock_id)
-                st.session_state[f"inst_{stock_id}"] = inst_data
+                st.session_state[f"inst_data_{stock_id}"] = inst_data
 
-            if f"inst_{stock_id}" in st.session_state:
-                inst = st.session_state[f"inst_{stock_id}"]
+            if f"inst_data_{stock_id}" in st.session_state:
+                inst = st.session_state[f"inst_data_{stock_id}"]
                 if not inst:
                     st.info("目前無法取得法人數據（可能非交易日）")
                 else:
@@ -283,7 +283,7 @@ for tab, stock_id in zip(tabs, watchlist):
             else:
                 col_ai1, col_ai2 = st.columns([2, 1])
                 with col_ai1:
-                    inst_for_ai = st.session_state.get(f"inst_{stock_id}")
+                    inst_for_ai = st.session_state.get(f"inst_data_{stock_id}")
                     has_news = len(news_list) > 0
                     has_inst = bool(inst_for_ai)
                     st.caption(
@@ -291,7 +291,7 @@ for tab, stock_id in zip(tabs, watchlist):
                         f"新聞 {'✅' if has_news else '❌（未取得）'}　"
                         f"法人籌碼 {'✅' if has_inst else '❌（請先到「法人籌碼」頁載入）'}"
                     )
-                    if st.button(f"產生 {stock_id} AI 分析報告", key=f"ai_{stock_id}", use_container_width=True):
+                    if st.button(f"產生 {stock_id} AI 分析報告", key=f"btn_ai_{stock_id}", use_container_width=True):
                         with st.spinner("AI 分析中，約需 15～20 秒..."):
                             try:
                                 report = get_ai_analysis(
@@ -299,21 +299,21 @@ for tab, stock_id in zip(tabs, watchlist):
                                     news_list=news_list if has_news else None,
                                     inst_data=inst_for_ai if has_inst else None,
                                 )
-                                st.session_state[f"ai_report_{stock_id}"] = report
+                                st.session_state[f"ai_rpt_{stock_id}"] = report
                             except Exception as e:
                                 st.error(f"AI 分析失敗：{e}")
                 with col_ai2:
-                    if f"ai_report_{stock_id}" in st.session_state:
+                    if f"ai_rpt_{stock_id}" in st.session_state:
                         st.download_button(
                             "下載報告",
-                            data=st.session_state[f"ai_report_{stock_id}"],
+                            data=st.session_state[f"ai_rpt_{stock_id}"],
                             file_name=f"{stock_id}_分析報告_{datetime.now().strftime('%Y%m%d')}.txt",
                             mime="text/plain",
                             use_container_width=True,
                         )
 
-                if f"ai_report_{stock_id}" in st.session_state:
-                    report_text = st.session_state[f"ai_report_{stock_id}"]
+                if f"ai_rpt_{stock_id}" in st.session_state:
+                    report_text = st.session_state[f"ai_rpt_{stock_id}"]
                     st.markdown(
                         f"<div style='background:#1a237e;padding:20px;border-radius:10px;"
                         f"border-left:4px solid #5c6bc0;line-height:2.0;white-space:pre-wrap'>"
